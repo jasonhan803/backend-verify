@@ -1,0 +1,229 @@
+FORMAT: 1A
+HOST: http://verify:3000/
+
+# Jincor VERIFY Service
+
+Jincor Verification is a service for verify users email, phone, and etc.
+The main responsibilities are:
+1. Interact with a service provider
+1. Validation of a received code
+
+# API Endpoints Summary
+
+JWT_TOKEN should be passed for every API call in the HTTP headers,
+that was received from auth service.
+
+1. `/methods/{METHOD}/actions/initiate [POST]`
+1. `/methods/{METHOD}/verifiers/{VERIFICATION_ID}/actions/validate [POST]`
+1. `/methods/{METHOD}/verifiers/{VERIFICATION_ID} [DELETE]`
+
+# Notes about google_auth
+1. When you initiate google_auth verification 1st time for selected consumer you will get `totpUri` to show QR code in your frontend app.
+2. The received secret will be **TEMPORARY** until you verify it first time. If secret is not verified at least 1 time and you `initiate` new google_auth verification for consumer - you will get **NEW** secret. It's required to ensure that user successfully stored the secret and entered correct code.
+3. When you want to disable 2FA - initiate verification and send `removeSecret=true` param to `validate` endpoint to remove consumer's secret.
+
+## Verification: Initiate [/methods/{METHOD}/actions/initiate]
+
+Initiate verification process, with usage of specified *METHOD*.
+
++ Parameters
+    + METHOD (string) - One of *email*, *google_auth*, *phone* (not implemented).
+
+### Initiate verification [POST]
+
+Example: email verification `/methods/email/actions/initiate`.
+Pass uuid in `policy.forcedVerificationId` to force using of your verification generated id.
+Set up own code in `policy.forcedCode` to force using of your verification code (does not apply for google_auth method).
+
++ Request (application/json)
+    + Headers
+
+            Authorization: Bearer {JWT_TOKEN}
+            Accept: application/vnd.jincor+json; version=1
+
+    + Body
+
+            {
+                "consumer": "test@test.com",
+                "issuer": "Jincor",
+                "template": {
+                    "body": "Click on the <a href=\"https://service/verify-email/5RkvAr0PUe708a?code={{{CODE}}}&verificationId={{{VERIFICATION_ID}}}\">Verify Link</a> to continue registration."
+                },
+                "generateCode": {
+                    "length": 32,
+                    "symbolSet": ["DIGITS", "alphas", "ALPHAS"]
+                },
+                "policy": {
+                    "expiredOn": "01:00:00"
+                },
+                "payload": {
+                    "your": "custom payload"
+                }
+            }
+
++ Response 200 (application/json)
+
+            {
+                "status": 200,
+                "verificationId": "dc910ae0-7c67-4ace-8ebb-9edd4b5d8b0f",
+                "attempts": 0,
+                "expiredOn": 1505817462,
+                "payload": {
+                    "your": "custom payload"
+                }
+            }
+
++ Response 200 (application/json)
+
+            {
+                "verificationId": "5028c0cd-07a9-4fa7-8d88-49edd2a44b72",
+                "consumer": "test@test.com",
+                "expiredOn": 1508689744,
+                "totpUri": "otpauth://totp/:test@test.com?secret=CK53DOA3R7B2ZDMZKVOM53ZPT355ORJI&issuer=&algorithm=SHA1&digits=6&period=30",
+                "status": 200
+            }
+
++ Response 404 (application/json)
+
+        {
+            "status": 404,
+            "error": "Method not supported"
+        }
+
++ Response 422 (application/json)
+
+        {
+            "status": 422,
+            "error": "Invalid request",
+            "details": [
+                {"path": "generateCode.length", "error": "Incorrect number format"}
+            ]
+        }
+
+
+## Verification: Validate [/methods/{METHOD}/verifiers/{VERIFICATION_ID}/actions/validate]
+
++ Parameters
+    + METHOD (string) - One of *phone*, *email*, *google_auth*.
+    + VERIFICATION_ID (string)
+
+### Validate the code [POST]
+
+Example: code validation for the email
+method `/methods/email/verifiers/dc910ae0-7c67-4ace-8ebb-9edd4b5d8b0f/actions/validate`.
+
++ code `1234qwertA` (required)
++ removeSecret `true` (optional - use it to remove secret when you want to disable 2FA for consumer)
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer {JWT_TOKEN}
+            Accept: application/vnd.jincor+json; version=1
+
+    + Body
+
+            {
+                "code": "JeDknKO0EZRBT6aFPrFQhzcCA2aqyVsHzZeJ8Vf",
+                "removeSecret": true
+            }
+ 
++ Response 200 (application/json)
+
+        {
+            "status": 200,
+            "data": {
+              "verificationId": "dc910ae0-7c67-4ace-8ebb-9edd4b5d8b0f",
+              "consumer": "test@test.com",
+              "expiredOn": 1505817462,
+              "payload": {
+                  "your": "custom payload"
+              },
+              "attempts": 0
+            }
+        }
+ 
++ Response 404 (application/json)
+
+        {
+            "status": 404,
+            "error": "Not found"
+        }
+
++ Response 422 (application/json)
+
+        {
+            "status": 422,
+            "error": "Invalid code",
+            "data": {
+              "verificationId": "dc910ae0-7c67-4ace-8ebb-9edd4b5d8b0f",
+              "consumer": "test@test.com",
+              "expiredOn": 1505817462,
+              "payload": {
+                  "your": "custom payload"
+              },
+              "attempts": 1
+            }
+        }
+
+
+## Verifications [/methods/{METHOD}/verifiers/{VERIFICATION_ID}]
+
++ Parameters
+    + METHOD (string) - One of *phone*, *email*, *google_auth*.
+    + VERIFICATION_ID (string)
+
+### Get verification [GET]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer {JWT_TOKEN}
+            Accept: application/vnd.jincor+json; version=1
+
++ Response 200 (application/json)
+
+        {
+            "status": 200,
+            "data": {
+              "verificationId": "dc910ae0-7c67-4ace-8ebb-9edd4b5d8b0f",
+              "consumer": "test@test.com",
+              "expiredOn": 1505817462,
+              "payload": {
+                  "your": "custom payload"
+              },
+              "attempts": 1
+            }
+        }
+
++ Response 404 (application/json)
+
+        {
+            "status": 404,
+            "error": "Not found"
+        }
+
+### Invalidate the code [DELETE]
+
++ Request (application/json)
+
+    + Headers
+
+            Authorization: Bearer {JWT_TOKEN}
+            Accept: application/vnd.jincor+json; version=1
+
++ Response 200 (application/json)
+
+        {
+            "status": 200
+        }
+
++ Response 404 (application/json)
+
+        {
+            "status": 404,
+            "error": "Not found"
+        }
+

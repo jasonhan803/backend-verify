@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log
+coverage
+.nyc_output
+dist
+ts-node
+.idea
+.vscode
+
+codeship.aes
+deployment.env
